@@ -1,4 +1,4 @@
-import { Controller, Post, Param, Body, UseGuards, Req } from "@nestjs/common"
+import { Controller, Post, Param, Body, UseGuards, Req, BadRequestException, HttpCode } from "@nestjs/common"
 import { ProfileGuard } from "../../../common/guards/profile.guard"
 import { BalancesService } from "../services/balances.service"
 
@@ -12,15 +12,20 @@ export class BalancesController {
   constructor(private readonly balancesService: BalancesService) {}
 
   @Post('deposit/:userId')
+  @HttpCode(200)
   async deposit(
     @Param('userId') userId: string,
     @Body() depositDto: DepositDto,
     @Req() req: any
   ) {
+    if (!depositDto?.amount) {
+      throw new BadRequestException("Amount is required");
+    }
+
     const profile = await this.balancesService.deposit(
       parseInt(userId),
       depositDto.amount,
-      req.profile.id
+      req.profile?.id
     );
 
     return {

@@ -192,23 +192,44 @@ describe("BalancesController (e2e) - Deposit", () => {
       const depositAmount = 50 // Within 25% limit
       const initialBalance = clientProfile.balance
 
-      // Make concurrent deposit requests
-      const requests = [
-        supertest(app.getHttpServer())
-          .post(`/balances/deposit/${clientProfile.id}`)
-          .set("profile_id", clientProfile.id.toString())
-          .send({ amount: depositAmount }),
-        supertest(app.getHttpServer())
-          .post(`/balances/deposit/${clientProfile.id}`)
-          .set("profile_id", clientProfile.id.toString())
-          .send({ amount: depositAmount }),
-      ]
+      // Create both requests but don't await them yet
+      const request1 = supertest(app.getHttpServer())
+        .post(`/balances/deposit/${clientProfile.id}`)
+        .set("profile_id", clientProfile.id.toString())
+        .send({ amount: depositAmount });
+        
+      const request2 = supertest(app.getHttpServer())
+        .post(`/balances/deposit/${clientProfile.id}`)
+        .set("profile_id", clientProfile.id.toString())
+        .send({ amount: depositAmount });
 
-      await Promise.all(requests)
+      // Execute requests with a slight delay to ensure they overlap
+      const results = await Promise.allSettled([
+        request1,
+        new Promise(resolve => setTimeout(() => resolve(request2), 10))
+      ]);
 
-      // Verify final balance is correct (should only process one deposit)
-      const updatedProfile = await Profile.findByPk(clientProfile.id)
-      expect(updatedProfile.balance).toBe(initialBalance + depositAmount)
-    })
+      // Extract status codes, handling both fulfilled and rejected promises
+      const statuses = results.map(result => {
+        if (result.status === 'fulfilled') {
+          return result.value.status;
+        }
+        // If the promise was rejected, consider it a failure
+        return 400;
+      });
+
+      // Verify that exactly one request succeeded
+      const successCount = statuses.filter(status => status === 200).length;
+      const failureCount = statuses.filter(status => status !== 200).length;
+
+      expect(successCount).toBe(1);
+      expect(failureCount).toBe(1);
+
+      // Verify final state after a short delay
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const updatedProfile = await Profile.findByPk(clientProfile.id);
+      expect(updatedProfile.balance).toBe(initialBalance + depositAmount);
+    });
   })
 }) 

@@ -90,10 +90,19 @@ export class BalancesService {
           }
 
           // Update balance atomically
-          await profile.increment('balance', { 
+          const [affectedCount] = await this.profileModel.increment('balance', { 
             by: amount,
+            where: {
+              id: profile.id,
+              balance: profile.balance
+            },
             transaction: t 
-          });
+          }) as unknown as [number];
+
+          // If no rows were updated, it means another transaction modified the balance
+          if (affectedCount === 0) {
+            throw new Error('Concurrent modification detected');
+          }
 
           // Reload profile to get updated balance
           await profile.reload({ transaction: t });
