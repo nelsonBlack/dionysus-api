@@ -45,92 +45,100 @@ export class JobsService {
   }
 
   async payJob(jobId: number, profileId: number): Promise<Job> {
-    const transaction = await this.sequelize.transaction({
-      isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE
-    })
-
-    try {
-      // First find job without paid check to handle not found case
-      const job = await this.jobModel.findOne({
-        where: { id: jobId },
-        include: [Contract],
-        lock: Transaction.LOCK.UPDATE,
-        transaction,
-      })
-
-      if (!job) {
-        throw new NotFoundException("Job not found")
-      }
-
-      if (job.paid) {
-        throw new BadRequestException("Job is already paid")
-      }
-
-      // Get client profile
-      const client = await this.profileModel.findOne({
-        where: { id: profileId },
-        lock: Transaction.LOCK.UPDATE,
-        transaction,
-      })
-
-      if (!client) {
-        throw new NotFoundException("Client not found")
-      }
-
-      if (client.type !== "client") {
-        throw new ForbiddenException("Only clients can pay for jobs")
-      }
-
-      if (client.id !== job.contract.ClientId) {
-        throw new ForbiddenException("Job does not belong to your contracts")
-      }
-
-      if (client.balance < job.price) {
-        throw new BadRequestException("Insufficient balance")
-      }
-
-      // Get contractor profile
-      const contractor = await this.profileModel.findOne({
-        where: { id: job.contract.ContractorId },
-        lock: Transaction.LOCK.UPDATE,
-        transaction,
-      })
-
-      if (!contractor) {
-        throw new NotFoundException("Contractor not found")
-      }
-
-      // Update job with optimistic locking
-      const [updatedCount] = await this.jobModel.update(
-        {
-          paid: true,
-          paymentDate: new Date(),
-        },
-        {
-          where: { 
-            id: jobId,
-            paid: false
-          },
-          transaction,
+    this.logger.verbose({
+      message: 'Starting job payment',
+      jobId,
+      profileId
+    });
+  
+    // Add retries for transaction conflicts
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    
+    while (retryCount < MAX_RETRIES) {
+      try {
+        return await this.sequelize.transaction({
+          isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE
+        }, async (t) => {
+          // Find and lock the job with FOR UPDATE lock
+          const job = await this.jobModel.findOne({
+            where: { id: jobId },
+            include: [Contract],
+            lock: { level: t.LOCK.UPDATE, of: this.jobModel },
+            transaction: t,
+          });
+  
+          if (!job) {
+            throw new NotFoundException("Job not found");
+          }
+  
+          // Check if job was paid while we were waiting for lock
+          if (job.paid) {
+            throw new BadRequestException("Job is already paid");
+          }
+  
+          // Get and lock client profile
+          const client = await this.profileModel.findOne({
+            where: { id: profileId },
+            lock: true,
+            transaction: t,
+          });
+  
+          if (!client) {
+            throw new NotFoundException("Client not found");
+          }
+  
+          if (client.type !== "client") {
+            throw new ForbiddenException("Only clients can pay for jobs");
+          }
+  
+          if (client.id !== job.contract.ClientId) {
+            throw new ForbiddenException("Job does not belong to your contracts");
+          }
+  
+          if (client.balance < job.price) {
+            throw new BadRequestException("Insufficient balance");
+          }
+  
+          const contractor = await this.profileModel.findOne({
+            where: { id: job.contract.ContractorId },
+            lock: true,
+            transaction: t,
+          });
+  
+          await job.update(
+            { paid: true, paymentDate: new Date() },
+            { transaction: t }
+          );
+  
+          await Promise.all([
+            client.decrement('balance', { by: job.price, transaction: t }),
+            contractor.increment('balance', { by: job.price, transaction: t })
+          ]);
+  
+          const updatedJob = await this.jobModel.findByPk(jobId, {
+            include: [Contract],
+            transaction: t
+          });
+  
+          return updatedJob;
+        });
+      } catch (error) {
+        retryCount++;
+        
+        // If it's the last retry or not a transaction error, rethrow
+        if (retryCount === MAX_RETRIES || 
+            !error.message.includes('SQLITE_ERROR: cannot start a transaction')) {
+          throw error;
         }
-      )
-
-      if (updatedCount === 0) {
-        throw new BadRequestException("Job has already been paid")
+        
+        // Wait a small random amount of time before retrying
+        await new Promise(resolve => 
+          setTimeout(resolve, Math.random() * 100)
+        );
       }
-
-      // Update balances
-      await this.updateBalances(client, contractor, job.price, transaction)
-
-      await transaction.commit()
-      return await this.jobModel.findByPk(jobId, { include: [Contract] })
-
-    } catch (error) {
-      await transaction?.rollback()
-      throw error
     }
   }
-
   private async updateBalances(
     client: Profile,
     contractor: Profile,
