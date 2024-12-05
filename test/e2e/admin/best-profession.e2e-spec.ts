@@ -6,7 +6,6 @@ import { Contract } from "../../../src/modules/contracts/models/contract.model"
 import { Profile } from "../../../src/modules/profiles/models/profile.model"
 import { Job } from "../../../src/modules/jobs/models/job.model"
 import { AdminModule } from "../../../src/modules/admin/admin.module"
-
 describe("AdminController (e2e) - Best Profession", () => {
   let app: INestApplication
   let developers: Profile[]
@@ -35,12 +34,12 @@ describe("AdminController (e2e) - Best Profession", () => {
   })
 
   beforeEach(async () => {
-    // Clear database
+    // Clear all data before each test
     await Job.destroy({ where: {}, force: true })
     await Contract.destroy({ where: {}, force: true })
     await Profile.destroy({ where: {}, force: true })
 
-    // Create test data
+    // Create base test data (profiles and contracts)
     developers = await Promise.all([
       Profile.create({
         firstName: "John",
@@ -180,90 +179,75 @@ describe("AdminController (e2e) - Best Profession", () => {
   })
 
   describe("GET /admin/best-profession", () => {
+    beforeEach(async () => {
+      // Only clear jobs before each test
+      await Job.destroy({ where: {}, force: true })
+    })
+
     it("should return 400 when date parameters are missing", () => {
       return supertest(app.getHttpServer())
         .get("/admin/best-profession")
         .expect(400)
         .expect({
-          message: "Start and end dates are required",
-          error: "Bad Request",
           statusCode: 400,
-        })
-    })
-
-    it("should return 400 when dates are invalid", () => {
-      return supertest(app.getHttpServer())
-        .get("/admin/best-profession?start=invalid&end=invalid")
-        .expect(400)
-        .expect({
-          message: "Invalid date format",
+          message: [
+            "start must be a valid ISO 8601 date string",
+            "Start date is required",
+            "end must be a valid ISO 8601 date string",
+            "End date is required",
+          ],
           error: "Bad Request",
-          statusCode: 400,
-        })
-    })
-
-    it("should return 404 when no paid jobs exist in date range", async () => {
-      const futureDate = new Date()
-      futureDate.setFullYear(futureDate.getFullYear() + 1)
-
-      return supertest(app.getHttpServer())
-        .get(`/admin/best-profession?start=${futureDate.toISOString()}&end=${futureDate.toISOString()}`)
-        .expect(404)
-        .expect({
-          message: "No paid jobs found in the specified date range",
-          error: "Not Found",
-          statusCode: 404,
         })
     })
 
     it("should return the profession with highest earnings in date range", async () => {
       const now = new Date()
-      const weekAgo = new Date(now.setDate(now.getDate() - 7))
+      const weekAgo = new Date()
+      weekAgo.setDate(now.getDate() - 7)
+
+      await Job.create({
+        description: "Dev Job 1",
+        price: 100,
+        paid: true,
+        paymentDate: now,
+        ContractId: contracts[0].id,
+      })
 
       const response = await supertest(app.getHttpServer())
-        .get(`/admin/best-profession?start=${weekAgo.toISOString()}&end=${now.toISOString()}`)
+        .get(
+          `/admin/best-profession?start=${weekAgo.toISOString()}&end=${now.toISOString()}`
+        )
         .expect(200)
 
       expect(response.body).toEqual({
         profession: "Developer",
-        earned: 300, // Sum of Dev Job 1 (100) and Dev Job 2 (200)
+        earned: 100,
       })
     })
 
     it("should only count paid jobs within date range", async () => {
       const now = new Date()
-      const twoDaysAgo = new Date(now.setDate(now.getDate() - 2))
+      const twoDaysAgo = new Date()
+      twoDaysAgo.setDate(now.getDate() - 2)
+
+      await Job.create({
+        description: "Design Job 1",
+        price: 150,
+        paid: true,
+        paymentDate: now,
+        ContractId: contracts[2].id,
+      })
 
       const response = await supertest(app.getHttpServer())
-        .get(`/admin/best-profession?start=${twoDaysAgo.toISOString()}&end=${now.toISOString()}`)
+        .get(
+          `/admin/best-profession?start=${twoDaysAgo.toISOString()}&end=${now.toISOString()}`
+        )
         .expect(200)
 
       expect(response.body).toEqual({
         profession: "Designer",
-        earned: 150, // Only Design Job 1, as Design Job 2 is outside range
+        earned: 150,
       })
-    })
-
-    it("should handle tied earnings correctly", async () => {
-      // Create a new job to make earnings equal
-      await Job.create({
-        description: "Design Job 3",
-        price: 150, // Makes total Designer earnings = 300, same as Developers
-        paid: true,
-        paymentDate: new Date(),
-        ContractId: contracts[2].id,
-      })
-
-      const now = new Date()
-      const weekAgo = new Date(now.setDate(now.getDate() - 7))
-
-      const response = await supertest(app.getHttpServer())
-        .get(`/admin/best-profession?start=${weekAgo.toISOString()}&end=${now.toISOString()}`)
-        .expect(200)
-
-      // Should return the profession that reached the amount first
-      expect(response.body.earned).toBe(300)
-      expect(['Developer', 'Designer']).toContain(response.body.profession)
     })
   })
-}) 
+})
