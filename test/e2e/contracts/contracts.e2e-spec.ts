@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing"
 import { INestApplication } from "@nestjs/common"
-import * as request from "supertest"
+import supertest from "supertest"
 import { ContractsModule } from "../../../src/modules/contracts/contracts.module"
 import { SequelizeModule } from "@nestjs/sequelize"
 import { Contract } from "../../../src/modules/contracts/models/contract.model"
@@ -74,7 +74,7 @@ describe("ContractsController (e2e)", () => {
 
   describe("GET /contracts/:id", () => {
     it("should return 401 when no profile is provided", () => {
-      return request(app.getHttpServer())
+      return supertest(app.getHttpServer())
         .get("/contracts/1")
         .expect(401)
         .expect({
@@ -85,7 +85,7 @@ describe("ContractsController (e2e)", () => {
     })
 
     it("should return 404 when contract is not found", () => {
-      return request(app.getHttpServer())
+      return supertest(app.getHttpServer())
         .get("/contracts/999")
         .set("profile_id", clientProfile.id.toString())
         .expect(404)
@@ -97,7 +97,7 @@ describe("ContractsController (e2e)", () => {
     })
 
     it("should return contract when client requests their contract", async () => {
-      const response = await request(app.getHttpServer())
+      const response = await supertest(app.getHttpServer())
         .get(`/contracts/${contract.id}`)
         .set("profile_id", clientProfile.id.toString())
         .expect(200)

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing"
 import { INestApplication } from "@nestjs/common"
-import * as request from "supertest"
+import supertest from "supertest"
 import { ContractsModule } from "../../../src/modules/contracts/contracts.module"
 import { SequelizeModule } from "@nestjs/sequelize"
 import { Contract } from "../../../src/modules/contracts/models/contract.model"
@@ -83,7 +83,7 @@ describe("ContractsController (e2e) - List Contracts", () => {
 
   describe("GET /contracts", () => {
     it("should return 401 when no profile is provided", () => {
-      return request(app.getHttpServer())
+      return supertest(app.getHttpServer())
         .get("/contracts")
         .expect(401)
         .expect({
@@ -94,7 +94,7 @@ describe("ContractsController (e2e) - List Contracts", () => {
     })
 
     it("should return only non-terminated contracts for client", async () => {
-      const response = await request(app.getHttpServer())
+      const response = await supertest(app.getHttpServer())
         .get("/contracts")
         .set("profile_id", clientProfile.id.toString())
         .expect(200)
@@ -130,7 +130,7 @@ describe("ContractsController (e2e) - List Contracts", () => {
         balance: 1000,
       })
 
-      const response = await request(app.getHttpServer())
+      const response = await supertest(app.getHttpServer())
         .get("/contracts")
         .set("profile_id", otherProfile.id.toString())
         .expect(200)

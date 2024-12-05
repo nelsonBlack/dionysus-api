@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing"
 import { INestApplication } from "@nestjs/common"
-import * as request from "supertest"
+import supertest from "supertest"
 import { JobsModule } from "../../../src/modules/jobs/jobs.module"
 import { SequelizeModule } from "@nestjs/sequelize"
 import { Contract } from "../../../src/modules/contracts/models/contract.model"
@@ -100,7 +100,7 @@ describe("JobsController (e2e) - Unpaid Jobs", () => {
 
   describe("GET /jobs/unpaid", () => {
     it("should return 401 when no profile is provided", () => {
-      return request(app.getHttpServer())
+      return supertest(app.getHttpServer())
         .get("/jobs/unpaid")
         .expect(401)
         .expect({
@@ -111,7 +111,7 @@ describe("JobsController (e2e) - Unpaid Jobs", () => {
     })
 
     it("should return only unpaid jobs from active contracts", async () => {
-      const response = await request(app.getHttpServer())
+      const response = await supertest(app.getHttpServer())
         .get("/jobs/unpaid")
         .set("profile_id", clientProfile.id.toString())
         .expect(200)
@@ -121,7 +121,7 @@ describe("JobsController (e2e) - Unpaid Jobs", () => {
         data: expect.arrayContaining([
           expect.objectContaining({
             paid: false,
-            Contract: expect.objectContaining({
+            contract: expect.objectContaining({
               status: "in_progress",
             }),
           }),
