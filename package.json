@@ -23,7 +23,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed": "node ./scripts/seedDb.js",
-    "test": "jest",
+    "test": "jest --config jest.config.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json --forceExit"

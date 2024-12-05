@@ -50,7 +50,7 @@ export class ContractsController {
       message: "Get all contracts request",
     })
 
-    // Note: You'll need to implement proper profile ID handling
+    // TODO: need to implement proper profile ID handling
     const profileId = 1 // This should come from your auth system
     return this.contractsService.findAll(profileId)
   }
