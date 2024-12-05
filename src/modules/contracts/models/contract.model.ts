@@ -7,8 +7,8 @@ import {
   ForeignKey,
   HasMany,
 } from "sequelize-typescript"
-import { Profile } from "../../profiles/models/profile.model"
 import { Job } from "../../jobs/models/job.model"
+import { Profile } from "./profile.model"
 
 @Table
 export class Contract extends Model {
