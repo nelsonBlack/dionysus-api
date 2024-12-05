@@ -5,6 +5,7 @@ import { SequelizeModule } from "@nestjs/sequelize"
 import { Contract } from "../../../src/modules/contracts/models/contract.model"
 import { Profile } from "../../../src/modules/profiles/models/profile.model"
 import { Job } from "../../../src/modules/jobs/models/job.model"
+import { BalancesModule } from "../../../src/modules/balances/balances.module"
 
 describe("BalancesController (e2e) - Deposit", () => {
   let app: INestApplication
