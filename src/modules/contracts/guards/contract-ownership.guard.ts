@@ -4,8 +4,8 @@ import {
   ExecutionContext,
   NotFoundException,
 } from "@nestjs/common"
-import { ContractsService } from "../../modules/contracts/services/contracts.service"
 import { Logger } from "@nestjs/common"
+import { ContractsService } from "../services/contracts.service"
 
 /**
  * Guard that handles contract ownership verification
@@ -27,21 +27,25 @@ export class ContractOwnershipGuard implements CanActivate {
     const contractId = parseInt(request.params.id)
     const profileId = parseInt(request.headers["profile_id"])
 
+    // Get contract details without exposing them in the response
     const contract = await this.contractsService.findById(contractId)
 
     if (!contract) {
       throw new NotFoundException(`Contract with ID ${contractId} not found`)
     }
 
+    // Check if the requesting profile owns the contract
     const canView =
       contract.ClientId === profileId || contract.ContractorId === profileId
 
     if (!canView) {
+      // Log unauthorized access attempts for security monitoring
       this.logger.error({
         message: "Unauthorized access to contract",
         contractId,
         profileId,
       })
+      // Return 404 instead of 403 to prevent information disclosure
       throw new NotFoundException(`Contract with ID ${contractId} not found`)
     }
 

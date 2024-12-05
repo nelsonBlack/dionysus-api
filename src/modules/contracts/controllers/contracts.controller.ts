@@ -8,11 +8,10 @@ import {
   ParseIntPipe,
 } from "@nestjs/common"
 import { ContractsService } from "../services/contracts.service"
-import { Contract } from "../models/contract.model"
 import { ProfileGuard } from "../../../common/guards/profile.guard"
-import { ContractOwnershipGuard } from "../guards/contract-ownership.guard"
+import { ContractOwnershipGuard } from "../../../common/guards/contract-ownership.guard"
+import { Contract } from "../models/contract.model"
 
-// Add response type
 interface ApiResponse<T> {
   status: string
   data: T
@@ -30,7 +29,7 @@ export class ContractsController {
     @Param("id", ParseIntPipe) id: number
   ): Promise<ApiResponse<Contract>> {
     const contract = await this.contractsService.findById(id)
-
+    
     if (!contract) {
       this.logger.error({
         message: "Contract not found",
@@ -39,9 +38,9 @@ export class ContractsController {
       throw new NotFoundException(`Contract with ID ${id} not found`)
     }
 
-    return {
-      status: "success",
-      data: contract,
+    return { 
+      status: "success", 
+      data: contract 
     }
   }
 
@@ -55,4 +54,4 @@ export class ContractsController {
     const profileId = 1 // This should come from your auth system
     return this.contractsService.findAll(profileId)
   }
-}
+} 
