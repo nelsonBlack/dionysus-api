@@ -69,10 +69,52 @@ describe("JobsController (e2e) - Pay Job", () => {
   })
 
   afterAll(async () => {
-    await Job.sync({ force: true })
-    await Contract.sync({ force: true })
-    await Profile.sync({ force: true })
+    await Job.destroy({ where: {}, force: true })
+    await Contract.destroy({ where: {}, force: true })
+    await Profile.destroy({ where: {}, force: true })
     await app.close()
+  })
+
+  beforeEach(async () => {
+    // Clear any existing data
+    await Job.destroy({ where: {}, force: true })
+    await Contract.destroy({ where: {}, force: true })
+    await Profile.destroy({ where: {}, force: true })
+
+    // Reset test data
+    clientProfile = await Profile.create({
+      type: "client",
+      firstName: "John",
+      lastName: "Doe",
+      profession: "Manager",
+      balance: 1000,
+    })
+
+    contractorProfile = await Profile.create({
+      type: "contractor",
+      firstName: "Jane",
+      lastName: "Smith",
+      profession: "Developer",
+      balance: 0,
+    })
+
+    activeContract = await Contract.create({
+      terms: "Active Contract",
+      status: "in_progress",
+      ClientId: clientProfile.id,
+      ContractorId: contractorProfile.id,
+    })
+
+    unpaidJob = await Job.create({
+      description: "Unpaid job",
+      price: 100,
+      paid: false,
+      ContractId: activeContract.id,
+    })
+  })
+
+  afterEach(async () => {
+    jest.clearAllMocks()
   })
 
   describe("POST /jobs/:job_id/pay", () => {
@@ -181,7 +223,7 @@ describe("JobsController (e2e) - Pay Job", () => {
       expect(updatedJob.paid).toBe(true)
       expect(updatedJob.paymentDate).toBeTruthy()
     })
-
+// TODO: Fix this failing test
     it("should prevent concurrent payments of the same job", async () => {
       const job = await Job.create({
         description: "Concurrent test job",
@@ -190,26 +232,25 @@ describe("JobsController (e2e) - Pay Job", () => {
         ContractId: activeContract.id,
       })
 
-      // Attempt concurrent payments
-      const paymentPromises = [
+      const requests = [
         supertest(app.getHttpServer())
           .post(`/jobs/${job.id}/pay`)
           .set("profile_id", clientProfile.id.toString()),
         supertest(app.getHttpServer())
           .post(`/jobs/${job.id}/pay`)
-          .set("profile_id", clientProfile.id.toString()),
+          .set("profile_id", clientProfile.id.toString())
       ]
 
-      const results = await Promise.all(paymentPromises)
-      
-      // One should succeed, one should fail
+      const results = await Promise.all(requests)
+
+      // Count successful and failed responses
       const successCount = results.filter(r => r.status === 200).length
       const failCount = results.filter(r => r.status === 400).length
-      
+
       expect(successCount).toBe(1)
       expect(failCount).toBe(1)
 
-      // Verify job was paid exactly once
+      // Verify final state
       const updatedJob = await Job.findByPk(job.id)
       expect(updatedJob.paid).toBe(true)
       expect(updatedJob.paymentDate).toBeTruthy()
@@ -218,16 +259,23 @@ describe("JobsController (e2e) - Pay Job", () => {
     it("should maintain data consistency in case of partial failure", async () => {
       const initialClientBalance = clientProfile.balance
       const initialContractorBalance = contractorProfile.balance
-      
-      // Force a failure after balance update but before job update
-      jest.spyOn(Job.prototype, 'save').mockRejectedValueOnce(new Error('Forced failure'))
 
-      await supertest(app.getHttpServer())
-        .post(`/jobs/${unpaidJob.id}/pay`)
-        .set("profile_id", clientProfile.id.toString())
-        .expect(500)
+      // Mock update to simulate failure
+      const originalUpdate = Job.update
+      Job.update = jest.fn().mockImplementation(() => {
+        throw new Error("Forced failure")
+      })
 
-      // Verify no changes were made (transaction rollback)
+      try {
+        await supertest(app.getHttpServer())
+          .post(`/jobs/${unpaidJob.id}/pay`)
+          .set("profile_id", clientProfile.id.toString())
+          .expect(500)
+      } finally {
+        Job.update = originalUpdate
+      }
+
+      // Verify no changes were made
       const updatedClient = await Profile.findByPk(clientProfile.id)
       const updatedContractor = await Profile.findByPk(contractorProfile.id)
       const updatedJob = await Job.findByPk(unpaidJob.id)
