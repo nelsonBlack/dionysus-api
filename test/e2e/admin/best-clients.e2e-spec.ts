@@ -85,6 +85,15 @@ describe("AdminController (e2e) - Best Clients", () => {
         })
       )
     )
+
+    // In beforeEach after creating profiles
+    const adminProfile = await Profile.create({
+      firstName: "Admin",
+      lastName: "User",
+      profession: "Admin",
+      balance: 0,
+      type: "client",
+    })
   })
 
   afterAll(async () => {
@@ -92,24 +101,23 @@ describe("AdminController (e2e) - Best Clients", () => {
   })
 
   describe("GET /admin/best-clients", () => {
+    let adminProfile: Profile
+
     beforeEach(async () => {
-      // Clear jobs before each test
       await Job.destroy({ where: {}, force: true })
+
+      // Use existing profile from test data
+      adminProfile = clients[0] // Use first client as admin for tests
     })
 
-    it("should return 400 when date parameters are missing", () => {
+    it("should return 401 when profile_id is missing", () => {
       return supertest(app.getHttpServer())
         .get("/admin/best-clients")
-        .expect(400)
+        .expect(401)
         .expect({
-          statusCode: 400,
-          message: [
-            "start must be a valid ISO 8601 date string",
-            "Start date is required",
-            "end must be a valid ISO 8601 date string",
-            "End date is required",
-          ],
-          error: "Bad Request",
+          statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
         })
     })
 
@@ -147,6 +155,7 @@ describe("AdminController (e2e) - Best Clients", () => {
         .get(
           `/admin/best-clients?start=${weekAgo.toISOString()}&end=${now.toISOString()}`
         )
+        .set("profile_id", adminProfile.id)
         .expect(200)
 
       expect(response.body).toHaveLength(2) // Default limit
@@ -198,6 +207,7 @@ describe("AdminController (e2e) - Best Clients", () => {
         .get(
           `/admin/best-clients?start=${weekAgo.toISOString()}&end=${now.toISOString()}&limit=3`
         )
+        .set("profile_id", adminProfile.id)
         .expect(200)
 
       expect(response.body).toHaveLength(3)
@@ -249,6 +259,7 @@ describe("AdminController (e2e) - Best Clients", () => {
         .get(
           `/admin/best-clients?start=${twoDaysAgo.toISOString()}&end=${now.toISOString()}`
         )
+        .set("profile_id", adminProfile.id)
         .expect(200)
 
       expect(response.body).toHaveLength(1)
@@ -267,11 +278,24 @@ describe("AdminController (e2e) - Best Clients", () => {
         .get(
           `/admin/best-clients?start=${futureDate.toISOString()}&end=${futureDate.toISOString()}`
         )
+        .set("profile_id", adminProfile.id)
         .expect(404)
         .expect({
           statusCode: 404,
           message: "No paid jobs found in the specified date range",
           error: "Not Found",
+        })
+    })
+
+    it("should return 401 when profile is not found", () => {
+      return supertest(app.getHttpServer())
+        .get("/admin/best-clients")
+        .set("profile_id", "999999")
+        .expect(401)
+        .expect({
+          statusCode: 401,
+          message: "Profile not found",
+          error: "Unauthorized",
         })
     })
   })

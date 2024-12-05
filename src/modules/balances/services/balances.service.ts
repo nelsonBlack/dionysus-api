@@ -1,4 +1,10 @@
-import { Injectable, Logger, BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common"
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common"
 import { InjectModel } from "@nestjs/sequelize"
 import { Profile } from "../../profiles/models/profile.model"
 import { Job } from "../../jobs/models/job.model"
@@ -19,117 +25,134 @@ export class BalancesService {
     private sequelize: Sequelize
   ) {}
 
-  async deposit(userId: number, amount: number, profileId: number): Promise<Profile> {
+  async deposit(
+    userId: number,
+    amount: number,
+    profileId: number
+  ): Promise<Profile> {
     this.logger.verbose({
-      message: 'Starting deposit',
+      message: "Starting deposit",
       userId,
       amount,
-      profileId
-    });
+      profileId,
+    })
 
     if (!amount || amount <= 0) {
-      throw new BadRequestException("Amount must be positive");
+      throw new BadRequestException("Amount must be positive")
     }
 
     // Add retries for transaction conflicts
-    const MAX_RETRIES = 3;
-    let retryCount = 0;
-    
+    const MAX_RETRIES = 3
+    let retryCount = 0
+
     while (retryCount < MAX_RETRIES) {
       try {
-        return await this.sequelize.transaction({
-          isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE
-        }, async (t) => {
-          // Get and lock the target profile
-          const profile = await this.profileModel.findOne({
-            where: { id: userId },
-            lock: { level: t.LOCK.UPDATE, of: this.profileModel },
-            transaction: t,
-          });
+        return await this.sequelize.transaction(
+          {
+            isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE,
+          },
+          async (t) => {
+            // Get and lock the target profile
+            const profile = await this.profileModel.findOne({
+              where: { id: userId },
+              lock: { level: t.LOCK.UPDATE, of: this.profileModel },
+              transaction: t,
+            })
 
-          if (!profile) {
-            throw new NotFoundException("User not found");
-          }
+            if (!profile) {
+              throw new NotFoundException("User not found")
+            }
 
-          if (profile.type !== "client") {
-            throw new ForbiddenException("Only clients can make deposits");
-          }
+            if (profile.type !== "client") {
+              throw new ForbiddenException("Only clients can make deposits")
+            }
 
-          // Calculate total unpaid jobs amount
-          const unpaidJobs = await this.jobModel.findAll({
-            attributes: [
-              [this.sequelize.fn('SUM', this.sequelize.col('price')), 'total']
-            ],
-            where: { 
-              paid: false,
-            },
-            include: [{
-              model: Contract,
+            // Calculate total unpaid jobs amount
+            const unpaidJobs = (await this.jobModel.findAll({
+              attributes: [
+                [
+                  this.sequelize.fn("SUM", this.sequelize.col("price")),
+                  "total",
+                ],
+              ],
               where: {
-                status: 'in_progress',
-                ClientId: userId
+                paid: false,
               },
-              required: true
-            }],
-            raw: true,
-            transaction: t
-          }) as unknown as [{ total: number }];
+              include: [
+                {
+                  model: Contract,
+                  where: {
+                    status: "in_progress",
+                    ClientId: userId,
+                  },
+                  required: true,
+                },
+              ],
+              raw: true,
+              transaction: t,
+            })) as unknown as [{ total: number }]
 
-          const totalJobsToPay = unpaidJobs[0]?.total || 0;
+            const totalJobsToPay = unpaidJobs[0]?.total || 0
 
-          const maxDeposit = totalJobsToPay * 0.25;
+            const maxDeposit = totalJobsToPay * 0.25
 
-          if (amount > maxDeposit) {
-            this.logger.warn({
-              message: 'Deposit exceeds limit',
+            if (amount > maxDeposit) {
+              this.logger.warn({
+                message: "Deposit exceeds limit",
+                amount,
+                maxDeposit,
+                totalJobsToPay,
+              })
+              throw new BadRequestException(
+                "Deposit amount exceeds 25% of total jobs to pay"
+              )
+            }
+
+            // Update balance atomically
+            const [affectedCount] = (await this.profileModel.increment(
+              "balance",
+              {
+                by: amount,
+                where: {
+                  id: profile.id,
+                  balance: profile.balance,
+                },
+                transaction: t,
+              }
+            )) as unknown as [number]
+
+            // If no rows were updated, it means another transaction modified the balance
+            if (affectedCount === 0) {
+              throw new Error("Concurrent modification detected")
+            }
+
+            // Reload profile to get updated balance
+            await profile.reload({ transaction: t })
+
+            this.logger.verbose({
+              message: "Deposit completed successfully",
+              userId,
               amount,
-              maxDeposit,
-              totalJobsToPay
-            });
-            throw new BadRequestException("Deposit amount exceeds 25% of total jobs to pay");
+              newBalance: profile.balance,
+            })
+
+            return profile
           }
-
-          // Update balance atomically
-          const [affectedCount] = await this.profileModel.increment('balance', { 
-            by: amount,
-            where: {
-              id: profile.id,
-              balance: profile.balance
-            },
-            transaction: t 
-          }) as unknown as [number];
-
-          // If no rows were updated, it means another transaction modified the balance
-          if (affectedCount === 0) {
-            throw new Error('Concurrent modification detected');
-          }
-
-          // Reload profile to get updated balance
-          await profile.reload({ transaction: t });
-
-          this.logger.verbose({
-            message: 'Deposit completed successfully',
-            userId,
-            amount,
-            newBalance: profile.balance
-          });
-
-          return profile;
-        });
+        )
       } catch (error) {
-        retryCount++;
-        
+        retryCount++
+
         // If it's the last retry or not a transaction error, rethrow
-        if (retryCount === MAX_RETRIES || 
-            !error.message.includes('SQLITE_ERROR: cannot start a transaction')) {
-          throw error;
+        if (
+          retryCount === MAX_RETRIES ||
+          !error.message.includes("SQLITE_ERROR: cannot start a transaction")
+        ) {
+          throw error
         }
-        
+
         // Wait a small random amount of time before retrying
-        await new Promise(resolve => 
-          setTimeout(resolve, Math.random() * 100)
-        );
+        await new Promise((resolve) => setTimeout(resolve, Math.random() * 100))
       }
     }
   }
-} 
+}
