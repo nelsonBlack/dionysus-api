@@ -81,4 +81,51 @@ export class AdminService {
       earned: results[0].earned,
     }
   }
+
+  async getBestClients(start: Date, end: Date, limit: number = 2) {
+    const results = (await this.sequelize.query(
+      `
+      WITH ClientPayments AS (
+        SELECT 
+          p.id,
+          p.firstName,
+          p.lastName,
+          CAST(SUM(j.price) AS FLOAT) as paid
+        FROM Profiles p
+        INNER JOIN Contracts c ON c.ClientId = p.id
+        INNER JOIN Jobs j ON j.ContractId = c.id
+        WHERE 
+          j.paid = 1
+          AND date(j.paymentDate) >= date(:start)
+          AND date(j.paymentDate) <= date(:end)
+        GROUP BY p.id
+        ORDER BY paid DESC
+        LIMIT :limit
+      )
+      SELECT 
+        id,
+        firstName || ' ' || lastName as fullName,
+        paid
+      FROM ClientPayments
+      `,
+      {
+        type: QueryTypes.SELECT,
+        replacements: {
+          start: start.toISOString().split("T")[0],
+          end: end.toISOString().split("T")[0],
+          limit,
+        },
+      }
+    )) as Array<{ id: number; fullName: string; paid: number }>
+
+    if (!results.length) {
+      throw new NotFoundException({
+        statusCode: 404,
+        message: "No paid jobs found in the specified date range",
+        error: "Not Found",
+      })
+    }
+
+    return results
+  }
 }
