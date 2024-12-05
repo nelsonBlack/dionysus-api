@@ -3,6 +3,7 @@ import { SequelizeModule } from "@nestjs/sequelize"
 import { ContractsModule } from "./modules/contracts/contracts.module"
 import { ProfilesModule } from "./modules/profiles/profiles.module"
 import { JobsModule } from "./modules/jobs/jobs.module"
+import { AdminModule } from "./modules/admin/admin.module"
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { JobsModule } from "./modules/jobs/jobs.module"
     ContractsModule,
     ProfilesModule,
     JobsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
