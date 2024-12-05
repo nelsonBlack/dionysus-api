@@ -87,13 +87,13 @@ describe("BalancesController (e2e) - Deposit", () => {
   describe("POST /balances/deposit/:userId", () => {
     it("should return 401 when no profile is provided", () => {
       return supertest(app.getHttpServer())
-        .post(`/balances/deposit/${clientProfile.id}`)
+        .post("/balances/deposit/1")
         .send({ amount: 50 })
         .expect(401)
         .expect({
-          message: "Authentication required",
-          error: "Unauthorized",
           statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
         })
     })
 
@@ -196,40 +196,40 @@ describe("BalancesController (e2e) - Deposit", () => {
       const request1 = supertest(app.getHttpServer())
         .post(`/balances/deposit/${clientProfile.id}`)
         .set("profile_id", clientProfile.id.toString())
-        .send({ amount: depositAmount });
-        
+        .send({ amount: depositAmount })
+
       const request2 = supertest(app.getHttpServer())
         .post(`/balances/deposit/${clientProfile.id}`)
         .set("profile_id", clientProfile.id.toString())
-        .send({ amount: depositAmount });
+        .send({ amount: depositAmount })
 
       // Execute requests with a slight delay to ensure they overlap
       const results = await Promise.allSettled([
         request1,
-        new Promise(resolve => setTimeout(() => resolve(request2), 10))
-      ]);
+        new Promise((resolve) => setTimeout(() => resolve(request2), 10)),
+      ])
 
       // Extract status codes, handling both fulfilled and rejected promises
-      const statuses = results.map(result => {
-        if (result.status === 'fulfilled') {
-          return result.value.status;
+      const statuses = results.map((result) => {
+        if (result.status === "fulfilled") {
+          return result.value.status
         }
         // If the promise was rejected, consider it a failure
-        return 400;
-      });
+        return 400
+      })
 
       // Verify that exactly one request succeeded
-      const successCount = statuses.filter(status => status === 200).length;
-      const failureCount = statuses.filter(status => status !== 200).length;
+      const successCount = statuses.filter((status) => status === 200).length
+      const failureCount = statuses.filter((status) => status !== 200).length
 
-      expect(successCount).toBe(1);
-      expect(failureCount).toBe(1);
+      expect(successCount).toBe(1)
+      expect(failureCount).toBe(1)
 
       // Verify final state after a short delay
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const updatedProfile = await Profile.findByPk(clientProfile.id);
-      expect(updatedProfile.balance).toBe(initialBalance + depositAmount);
-    });
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      const updatedProfile = await Profile.findByPk(clientProfile.id)
+      expect(updatedProfile.balance).toBe(initialBalance + depositAmount)
+    })
   })
-}) 
+})

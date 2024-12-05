@@ -8,6 +8,7 @@ import { Job } from "../../../src/modules/jobs/models/job.model"
 import { AdminModule } from "../../../src/modules/admin/admin.module"
 describe("AdminController (e2e) - Best Profession", () => {
   let app: INestApplication
+  let adminProfile: Profile
   let developers: Profile[]
   let designers: Profile[]
   let clients: Profile[]
@@ -38,6 +39,15 @@ describe("AdminController (e2e) - Best Profession", () => {
     await Job.destroy({ where: {}, force: true })
     await Contract.destroy({ where: {}, force: true })
     await Profile.destroy({ where: {}, force: true })
+
+    // Create admin profile first
+    adminProfile = await Profile.create({
+      firstName: "Admin",
+      lastName: "User",
+      profession: "Admin",
+      balance: 0,
+      type: "client",
+    })
 
     // Create base test data (profiles and contracts)
     developers = await Promise.all([
@@ -184,9 +194,33 @@ describe("AdminController (e2e) - Best Profession", () => {
       await Job.destroy({ where: {}, force: true })
     })
 
+    it("should return 401 when profile_id is missing", () => {
+      return supertest(app.getHttpServer())
+        .get("/admin/best-profession")
+        .expect(401)
+        .expect({
+          statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
+        })
+    })
+
+    it("should return 401 when profile is not found", () => {
+      return supertest(app.getHttpServer())
+        .get("/admin/best-profession")
+        .set("profile_id", "999999")
+        .expect(401)
+        .expect({
+          statusCode: 401,
+          message: "Profile not found",
+          error: "Unauthorized",
+        })
+    })
+
     it("should return 400 when date parameters are missing", () => {
       return supertest(app.getHttpServer())
         .get("/admin/best-profession")
+        .set("profile_id", adminProfile.id)
         .expect(400)
         .expect({
           statusCode: 400,
@@ -217,6 +251,7 @@ describe("AdminController (e2e) - Best Profession", () => {
         .get(
           `/admin/best-profession?start=${weekAgo.toISOString()}&end=${now.toISOString()}`
         )
+        .set("profile_id", adminProfile.id)
         .expect(200)
 
       expect(response.body).toEqual({
@@ -242,6 +277,7 @@ describe("AdminController (e2e) - Best Profession", () => {
         .get(
           `/admin/best-profession?start=${twoDaysAgo.toISOString()}&end=${now.toISOString()}`
         )
+        .set("profile_id", adminProfile.id)
         .expect(200)
 
       expect(response.body).toEqual({

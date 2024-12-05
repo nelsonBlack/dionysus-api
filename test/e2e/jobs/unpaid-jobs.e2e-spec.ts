@@ -104,9 +104,9 @@ describe("JobsController (e2e) - Unpaid Jobs", () => {
         .get("/jobs/unpaid")
         .expect(401)
         .expect({
-          message: "Authentication required",
-          error: "Unauthorized",
           statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
         })
     })
 
@@ -132,4 +132,4 @@ describe("JobsController (e2e) - Unpaid Jobs", () => {
       expect(response.body.data).toHaveLength(1)
     })
   })
-}) 
+})

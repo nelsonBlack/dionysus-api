@@ -6,12 +6,14 @@ import { SequelizeModule } from "@nestjs/sequelize"
 import { Contract } from "../../../src/modules/contracts/models/contract.model"
 import { Profile } from "../../../src/modules/profiles/models/profile.model"
 import { Job } from "../../../src/modules/jobs/models/job.model"
+import { createTestProfile, getAuthHeader } from "../../helpers/auth.helper"
 
 describe("ContractsController (e2e)", () => {
   let app: INestApplication
   let contract: Contract
   let clientProfile: Profile
   let contractorProfile: Profile
+  let testClient: Profile
 
   jest.setTimeout(30000)
 
@@ -63,6 +65,8 @@ describe("ContractsController (e2e)", () => {
       ClientId: clientProfile.id,
       ContractorId: contractorProfile.id,
     })
+
+    testClient = await createTestProfile("client")
   })
 
   afterAll(async () => {
@@ -73,21 +77,21 @@ describe("ContractsController (e2e)", () => {
   })
 
   describe("GET /contracts/:id", () => {
-    it("should return 401 when no profile is provided", () => {
+    it("should require authentication", () => {
       return supertest(app.getHttpServer())
         .get("/contracts/1")
         .expect(401)
         .expect({
-          message: "Authentication required",
-          error: "Unauthorized",
           statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
         })
     })
 
     it("should return 404 when contract is not found", () => {
       return supertest(app.getHttpServer())
         .get("/contracts/999")
-        .set("profile_id", clientProfile.id.toString())
+        .set(getAuthHeader(clientProfile.id))
         .expect(404)
         .expect({
           message: "Contract with ID 999 not found",
@@ -99,7 +103,7 @@ describe("ContractsController (e2e)", () => {
     it("should return contract when client requests their contract", async () => {
       const response = await supertest(app.getHttpServer())
         .get(`/contracts/${contract.id}`)
-        .set("profile_id", clientProfile.id.toString())
+        .set(getAuthHeader(clientProfile.id))
         .expect(200)
 
       expect(response.body).toEqual({
@@ -112,6 +116,26 @@ describe("ContractsController (e2e)", () => {
           ContractorId: contractorProfile.id,
         }),
       })
+    })
+  })
+
+  describe("GET /contracts", () => {
+    it("should require authentication", () => {
+      return supertest(app.getHttpServer())
+        .get("/contracts")
+        .expect(401)
+        .expect({
+          statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
+        })
+    })
+
+    it("should get contracts", () => {
+      return supertest(app.getHttpServer())
+        .get("/contracts")
+        .set(getAuthHeader(clientProfile.id))
+        .expect(200)
     })
   })
 })

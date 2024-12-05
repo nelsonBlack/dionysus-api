@@ -87,9 +87,9 @@ describe("ContractsController (e2e) - List Contracts", () => {
         .get("/contracts")
         .expect(401)
         .expect({
-          message: "Authentication required",
-          error: "Unauthorized",
           statusCode: 401,
+          message: "Profile ID is required",
+          error: "Unauthorized",
         })
     })
 
@@ -141,4 +141,4 @@ describe("ContractsController (e2e) - List Contracts", () => {
       })
     })
   })
-}) 
+})
