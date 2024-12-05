@@ -23,10 +23,11 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed": "node ./scripts/seedDb.js",
-    "test": "jest --config jest.config.ts",
+    "test": "jest --config jest.config.ts --projects ./jest.config.ts",
+    "test:unit": "jest --config jest.config.ts --selectProjects unit --verbose",
+    "test:e2e": "jest --config jest.config.ts --selectProjects e2e --verbose --runInBand",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./test/jest-e2e.json --forceExit"
+    "test:cov": "jest --coverage"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

@@ -1,18 +1,54 @@
 import type { Config } from "@jest/types"
 
 const config: Config.InitialOptions = {
-  moduleFileExtensions: ["ts", "js", "json"],
+  moduleFileExtensions: ["js", "json", "ts"],
   rootDir: ".",
   testEnvironment: "node",
   transform: {
-    "^.+\\.ts$": "ts-jest",
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        tsconfig: "tsconfig.json"
+      }
+    ]
   },
-  testRegex: "(spec|e2e-spec)\\.ts$",
   moduleNameMapper: {
     "^src/(.*)$": "<rootDir>/src/$1",
   },
-  collectCoverageFrom: ["src/**/*.ts", "!**/node_modules/**"],
+  projects: [
+    {
+      displayName: "unit",
+      testMatch: ["<rootDir>/src/**/*.spec.ts"],
+      transform: {
+        "^.+\\.(t|j)s$": [
+          "ts-jest",
+          {
+            tsconfig: "tsconfig.json"
+          }
+        ]
+      },
+    },
+    {
+      displayName: "e2e",
+      testMatch: ["<rootDir>/test/e2e/**/*.e2e-spec.ts"],
+      transform: {
+        "^.+\\.(t|j)s$": [
+          "ts-jest",
+          {
+            tsconfig: "tsconfig.json"
+          }
+        ]
+      },
+    }
+  ],
+  collectCoverageFrom: ["src/**/*.ts"],
   coverageDirectory: "./coverage",
+  testPathIgnorePatterns: ["/node_modules/"],
+  globals: {
+    "ts-jest": {
+      tsconfig: "tsconfig.json"
+    }
+  }
 }
 
 export default config
