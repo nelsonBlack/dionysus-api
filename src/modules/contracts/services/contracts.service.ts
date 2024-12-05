@@ -12,25 +12,6 @@ export class ContractsService {
     private contractModel: typeof Contract
   ) {}
 
-  async findOne(id: number): Promise<Contract> {
-    this.logger.debug({
-      message: "Finding contract",
-      contractId: id,
-    })
-
-    const contract = await this.contractModel.findByPk(id)
-
-    if (!contract) {
-      this.logger.error({
-        message: "Contract not found",
-        contractId: id,
-      })
-      throw new NotFoundException(`Contract with ID ${id} not found`)
-    }
-
-    return contract
-  }
-
   async findAll(profileId: number): Promise<Contract[]> {
     this.logger.debug({
       message: "Finding non-terminated contracts",

@@ -6,6 +6,7 @@ import {
   Logger,
   UseGuards,
   ParseIntPipe,
+  Headers,
 } from "@nestjs/common"
 import { ContractsService } from "../services/contracts.service"
 import { ProfileGuard } from "../../../common/guards/profile.guard"
@@ -18,13 +19,14 @@ interface ApiResponse<T> {
 }
 
 @Controller("contracts")
+@UseGuards(ProfileGuard)
 export class ContractsController {
   private readonly logger = new Logger(ContractsController.name)
 
   constructor(private readonly contractsService: ContractsService) {}
 
   @Get(":id")
-  @UseGuards(ProfileGuard, ContractOwnershipGuard)
+  @UseGuards(ContractOwnershipGuard)
   async getContract(
     @Param("id", ParseIntPipe) id: number
   ): Promise<ApiResponse<Contract>> {
@@ -45,13 +47,18 @@ export class ContractsController {
   }
 
   @Get()
-  async getContracts() {
+  async getContracts(
+    @Headers("profile_id") profileId: string
+  ): Promise<ApiResponse<Contract[]>> {
     this.logger.debug({
-      message: "Get all contracts request",
+      message: "Get all non-terminated contracts request",
+      profileId,
     })
 
-    // TODO: need to implement proper profile ID handling
-    const profileId = 1 // This should come from your auth system
-    return this.contractsService.findAll(profileId)
+    const contracts = await this.contractsService.findAll(parseInt(profileId))
+    return { 
+      status: "success", 
+      data: contracts 
+    }
   }
 } 
